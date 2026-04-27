@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-nunito: "Nunito", sans-serif;
+
+  /* Rəng palitrası */
+  --color-bg-main: #F0F4F8;
+  --color-primary: #58CC02;
+  --color-secondary: #1CB0F6;
+  --color-sidebar-bg: #FFFFFF;
+  --color-text-main: #4B4B4B;
+  --color-accent-red: #FF4B4B;
+}
+
+/* Dark Mode */
+.dark {
+  --color-bg-main: #0F172A;
+  --color-sidebar-bg: #1E293B;
+  --color-text-main: #E2E8F0;
+  --color-primary: #61E002;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-main text-text-main font-sans transition-colors duration-300;
+  }
+}
+
+/* --- UI Komponentləri --- */
+.code-block {
+  @apply p-4 bg-white dark:bg-slate-800 rounded-2xl cursor-pointer font-bold border-2 border-slate-200 dark:border-slate-700 border-b-4 active:border-b-2 active:translate-y-0.5 transition-all flex items-center gap-3;
+}
+
+/* --- Monaco Editor: Vahid Blok Sistemi (Unified Chips) --- */
+
+/* Vahid blokun əsas konteyneri (Həm Kitabxana, həm Tip üçün ortaqlı) */
+/* 1. Ana Konteyner - Rəng bura tətbiq olunur */
+
+.monaco-editor .view-line {
+    line-height: 28px !important;
+    margin-top: 2px !important;
+    display: flex !important; /* Chip-lərin şaquli mərkəzlənməsi üçün */
+    align-items: center !important;
+}
+
+/* Əgər sətirlər arasında daha çox boşluq istəyirsənsə */
+.monaco-editor .view-lines {
+    padding-top: 5px !important;
+}
+
+/* Sətir nömrələrinin (line numbers) sətirlərlə eyni hizada olması üçün */
+.monaco-editor .line-numbers {
+    line-height: 28px !important;
+    padding-top: 2px !important;
+}
+
+.unified-chip {
+  display: inline-block !important;
+  border-radius: 8px !important;
+  font-weight: bold !important;
+  color: white !important;
+  vertical-align: middle;
+  /* Kəsikləri birləşdirən əsas xüsusiyyət */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.unified-chip:has(+ .unified-chip) {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-right: none !important;
+    margin-right: 0 !important;
+    padding-right: 5px !important;
+}
+
+/* 2. Əgər bir chip-dən ƏVVƏL başqa bir chip varsa (Sol tərəf üçün) */
+.unified-chip + .unified-chip {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-left: none !important;
+    margin-left: 0 !important;
+}
+
+/* Kitabxanalar üçün göy rəng */
+.library-chip, .library-color {
+  background-color: #3b82f6 !important;
+  border: 1px solid #2563eb !important;
+}
+
+/* Tiplər üçün yaşıl rəng */
+.type-chip, .type-color {
+  background-color: #10b981 !important;
+  border: 1px solid #059669 !important;
+}
+
+/* 2. Daxili elementlərin təmizlənməsi */
+/* Bu hissə span-ların öz fonunu silir ki, altdakı ana rəng (mavi/yaşıl) görünsün */
+.unified-chip span,
+.unified-chip [class*="mtk"] {
+  background: transparent !important; 
+  color: white;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Monaco-nun daxili seçim (selection) rənginin chip-in üstünü örtməməsi üçün */
+.monaco-editor .selected-text {
+  z-index: 1;
+}
+
+.monaco-editor .suggest-widget {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.monaco-editor .selected-text {
+  background-color: rgba(59, 130, 246, 0.3) !important; /* Mavi seçimi şəffaflaşdır */
+  border-radius: 4px;
+}
+
+/* Əgər blokların rəngi tamamilə itirsə, seçimi blokun arxasına atmaq üçün: */
+.monaco-editor .view-overlays .current-line {
+  z-index: 0 !important;
+}
+
+/* Blokların özü üçün: */
+.unified-chip {
+  position: relative;
+  z-index: 2 !important; /* Seçimdən daha yuxarıda olsun */
+}
+
+.io-chip {
+  background: linear-gradient(135deg, #ec4899 0%, #d946ef 100%) !important; /* Çəhrayı-Bənövşəyi gradient */
+  
+  /* Sol tərəf tam oval, sağ tərəf iti (ox effekti üçün) */
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  
+  margin-right: 4px;
+  box-shadow: 0 2px 4px rgba(236, 72, 153, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.endl-chip {
+  background: linear-gradient(135deg, #475569 0%, #1e293b 100%) !important; /* Tünd boz/Slate rəngi */
+  
+  /* Sol tərəf daha düz, sağ tərəf tam oval (sətri bağlayan effekt) */
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  
+  margin-left: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+  opacity: 0.9;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.main-chip {
+  background-color: #269fe6 !important; /* Solid Emerald */
+  
+  /* Sol tərəfdə qalın bir "başlanğıç" xətti effekti */
+ 
+}
