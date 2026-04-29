@@ -108,7 +108,7 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
 
     // --- STRICKER WIDGET MƏNTİQİ ---
 
-    const triggerSticker = () => {
+    const handleStickerVisibility = () => {
       // Stikeri dərhal gizlət
       stickerDomNode.style.opacity = "0";
       stickerDomNode.style.pointerEvents = "none";
@@ -116,16 +116,11 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
       typingTimeoutRef.current = setTimeout(() => {
-        // Kursorun yeni yerinə görə mövqeyi hesabla
+        // 1 saniyə sonra yerini yenilə və göstər
         editor.layoutContentWidget(stickerWidget);
-
-        // Animasiya ilə göstər
         stickerDomNode.style.opacity = "1";
         stickerDomNode.style.pointerEvents = "auto";
-
-        // Dekorasiyaları da bu arada yeniləyə bilərsən
-        debouncedApply(editor);
-      }, 800); // 800ms kursor sabit qaldıqda görünür
+      }, 1000); // Sənin istədiyin 1 saniyəlik gözləmə
     };
 
     // 1. DOM Elementini yarat
@@ -166,18 +161,21 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
 
       // Kursor hərəkət edən kimi stikerin də yerini yenilə (izləsin)
       // Əgər yazmırsa, dərhal görünsün
-      triggerSticker();
+      handleStickerVisibility();
     });
 
     // B. Mətn dəyişəndə (Yazanda)
     editor.onDidChangeModelContent(() => {
 
-      triggerSticker();
+      debouncedApply(editor);
+
+      // 2. Stikeri gizlət və taymeri başlat
+      handleStickerVisibility();
       // Yazmağa başlayanda dərhal gizlət
-      
+
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-     
+
     });
 
     // C. Klaviatura (Dəyişməyib)
@@ -217,40 +215,40 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
     };
   };
 
- useImperativeHandle(ref, () => ({
-  handleAddCode(snippet: string) {
-    const editor = editorRef.current;
-    if (!editor) return;
+  useImperativeHandle(ref, () => ({
+    handleAddCode(snippet: string) {
+      const editor = editorRef.current;
+      if (!editor) return;
 
-    const model = editor.getModel();
-    const pos = editor.getPosition();
-    
-    if (model && pos) {
-      // Kursorun olduğu sətrin mətnini alırıq
-      const lineContent = model.getLineContent(pos.lineNumber).trim();
-      
-      // Yoxlayırıq: Sətirdə ;, { və ya } varmı?
-      const shouldAddNewLine = /[;{}]/.test(lineContent);
-      
-      // Əgər varsa, snippet-in başına yeni sətir əlavə et
-      const finalSnippet = shouldAddNewLine ? `\n${snippet}` : snippet;
+      const model = editor.getModel();
+      const pos = editor.getPosition();
 
-      const contribution = editor.getContribution('snippetController2') as any;
-      if (contribution) {
-        contribution.insert(finalSnippet);
-      } else {
-        editor.executeEdits("insert", [{
-          range: editor.getSelection()!,
-          text: finalSnippet,
-          forceMoveMarkers: true
-        }]);
+      if (model && pos) {
+        // Kursorun olduğu sətrin mətnini alırıq
+        const lineContent = model.getLineContent(pos.lineNumber).trim();
+
+        // Yoxlayırıq: Sətirdə ;, { və ya } varmı?
+        const shouldAddNewLine = /[;{}]/.test(lineContent);
+
+        // Əgər varsa, snippet-in başına yeni sətir əlavə et
+        const finalSnippet = shouldAddNewLine ? `\n${snippet}` : snippet;
+
+        const contribution = editor.getContribution('snippetController2') as any;
+        if (contribution) {
+          contribution.insert(finalSnippet);
+        } else {
+          editor.executeEdits("insert", [{
+            range: editor.getSelection()!,
+            text: finalSnippet,
+            forceMoveMarkers: true
+          }]);
+        }
       }
+
+      editor.focus();
+      setPopup(prev => ({ ...prev, visible: false }));
     }
-    
-    editor.focus();
-    setPopup(prev => ({ ...prev, visible: false }));
-  }
-}));
+  }));
 
   return (
     <div className="flex w-full h-full overflow-hidden">
