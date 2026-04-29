@@ -1,13 +1,12 @@
 import Editor, { loader, OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { useImperativeHandle, useRef, useState, useCallback } from 'react';
-import { registerCppProvider } from '../lib/monaco-helpers';
+// import { registerCppProvider } from '../lib/monaco-helpers'; // Lazım olsa açarsan
 import { GridPopup } from './GridPopup';
-import { InfoSidebar } from './InfoPanel';
+// import { InfoSidebar } from './InfoPanel'; // Lazım olsa açarsan
 
 loader.config({ monaco });
 
-// Debounce funksiyasını kənarda saxlayırıq ki, render zamanı yenidən yaranmasın
 const debounce = (func: Function, wait: number) => {
   let timeout: NodeJS.Timeout;
   return (...args: any) => {
@@ -18,26 +17,62 @@ const debounce = (func: Function, wait: number) => {
 
 export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
   const [popup, setPopup] = useState({ visible: false, top: 0, left: 0, filter: "", context: 'body' });
+  // currentLineText-i saxlayırıq, bəlkə Sidebar üçün lazım olar
   const [currentLineText, setCurrentLineText] = useState("");
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decoCollectionRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
-  // 1. Dekorasiyaları tətbiq edən əsas funksiya
+  // Yazı yazma taymeri üçün ref
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Funksiyalar (Dəyişməyib) ---
+  const getEditorContext = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
+    const pos = editor.getPosition();
+    if (!pos) return 'body';
+    const model = editor.getModel();
+    const lineText = model?.getLineContent(pos.lineNumber) || "";
+    const isIncludeArea = lineText.includes("#include") || pos.lineNumber === 1;
+    let onlyIncludesAbove = true;
+    for (let i = 1; i < pos.lineNumber; i++) {
+      const text = model?.getLineContent(i).trim();
+      if (text !== "" && !text?.startsWith("#include") && !text?.startsWith("using")) {
+        onlyIncludesAbove = false;
+        break;
+      }
+    }
+    return (isIncludeArea || onlyIncludesAbove) ? 'top' : 'body';
+  }, []);
+
+  const openPopupAtCursor = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
+    const pos = editor.getPosition();
+    if (!pos) return;
+
+    const context = getEditorContext(editor);
+    const contentPos = editor.getScrolledVisiblePosition(pos);
+
+    if (contentPos) {
+      setPopup({
+        visible: true,
+        top: contentPos.top + 20, // Bir az aşağı
+        left: contentPos.left + 30, // Bir az sağa
+        filter: "",
+        context: context
+      });
+    }
+  }, [getEditorContext]);
+
+  // --- Dekorasiyalar (Dəyişməyib) ---
   const applyDecorations = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     if (!model) return;
-
     const text = model.getValue();
     const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
-
-    // Pattern-lər (Bütün açarları INFO_DATA-dan dinamik çəkə bilərsən və ya sabit saxlaya bilərsən)
     const patterns = [
       { regex: /^#include.*|^using\s+namespace\s+std;/gm, className: 'library-chip' },
       { regex: /\b(int|float|double|string|bool|char)\b/g, className: 'type-chip' },
       { regex: /\b(cin\s*>>|cout\s*<<|<<\s*endl)\b/g, className: 'io-chip' },
       { regex: /main\s*\(\s*\)/g, className: 'main-chip' }
     ];
-
     patterns.forEach(({ regex, className }) => {
       let match;
       while ((match = regex.exec(text)) !== null) {
@@ -53,7 +88,6 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
         });
       }
     });
-
     if (!decoCollectionRef.current) {
       decoCollectionRef.current = editor.createDecorationsCollection(newDecorations);
     } else {
@@ -61,62 +95,106 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
     }
   }, []);
 
-  // 2. Sürətli yazanda kursoru qoruyan debounce
   const debouncedApply = useCallback(debounce((editor: monaco.editor.IStandaloneCodeEditor) => {
-    const pos = editor.getPosition(); // Kursorun yerini yadda saxla
     applyDecorations(editor);
-    if (pos) editor.setPosition(pos); // Dekorasiyadan sonra kursoru zorla geri qaytar
   }, 50), [applyDecorations]);
 
+  // --- ON MOUNT ---
   const handleEditorDidMount: OnMount = (editor) => {
     editorRef.current = editor;
-    const provider = registerCppProvider();
+    // const provider = registerCppProvider(); // Lazım olsa açarsan
 
     editor.updateOptions({ glyphMargin: true });
 
-    // Kursor hərəkətini izlə (Sidebar üçün)
+    // --- STRICKER WIDGET MƏNTİQİ ---
+
+    const triggerSticker = () => {
+      // Stikeri dərhal gizlət
+      stickerDomNode.style.opacity = "0";
+      stickerDomNode.style.pointerEvents = "none";
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+      typingTimeoutRef.current = setTimeout(() => {
+        // Kursorun yeni yerinə görə mövqeyi hesabla
+        editor.layoutContentWidget(stickerWidget);
+
+        // Animasiya ilə göstər
+        stickerDomNode.style.opacity = "1";
+        stickerDomNode.style.pointerEvents = "auto";
+
+        // Dekorasiyaları da bu arada yeniləyə bilərsən
+        debouncedApply(editor);
+      }, 800); // 800ms kursor sabit qaldıqda görünür
+    };
+
+    // 1. DOM Elementini yarat
+    const stickerDomNode = document.createElement('div');
+    stickerDomNode.className = 'cursor-plus-sticker';
+    stickerDomNode.style.opacity = "0"; // Əvvəlcə gizli
+
+    // 2. Klik hadisəsini birbaşa DOM-a bağla
+    stickerDomNode.onclick = (e) => {
+      e.stopPropagation(); // Editorun öz klik hadisələrini dayandır
+      e.preventDefault();
+      openPopupAtCursor(editor);
+    };
+
+    // 3. Monaco ContentWidget obyektini təriflə
+    const stickerWidget: monaco.editor.IContentWidget = {
+      getId: () => 'cursor.plus.sticker',
+      getDomNode: () => stickerDomNode,
+      getPosition: () => ({
+        // Bu funksiya hər dəfə layoutContentWidget çağırılanda işləyir
+        position: editor.getPosition(),
+        // EXACT mövqe, CSS transform ilə tənzimlənəcək
+        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT]
+      })
+    };
+
+    // 4. Widget-i editora əlavə et
+    editor.addContentWidget(stickerWidget);
+
+    // --- HADİSƏLƏR (EVENTS) ---
+
+    // A. Kursor hərəkət edəndə (Yanıb-sönən xətt yerini dəyişəndə)
     editor.onDidChangeCursorPosition((e) => {
       const model = editor.getModel();
       if (model) {
         setCurrentLineText(model.getLineContent(e.position.lineNumber));
       }
+
+      // Kursor hərəkət edən kimi stikerin də yerini yenilə (izləsin)
+      // Əgər yazmırsa, dərhal görünsün
+      triggerSticker();
     });
 
-    // Mətn dəyişəndə (Yazanda)
+    // B. Mətn dəyişəndə (Yazanda)
     editor.onDidChangeModelContent(() => {
-      debouncedApply(editor);
+
+      triggerSticker();
+      // Yazmağa başlayanda dərhal gizlət
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+     
     });
 
-    // Klaviatura hadisələri
+    // C. Klaviatura (Dəyişməyib)
     editor.onKeyDown((e) => {
-      // Ctrl + Space: Popup açılması
       if (e.ctrlKey && e.keyCode === monaco.KeyCode.Space) {
         e.preventDefault();
-        const pos = editor.getPosition();
-        const contentPos = editor.getScrolledVisiblePosition(pos!);
-        const editorDom = editor.getDomNode();
-        if (contentPos && editorDom) {
-          setPopup({
-            visible: true,
-            top: contentPos.top < 300 ? contentPos.top : 300,
-            left: contentPos.left + 100 < 800 ? contentPos.left + 100 : 800,
-            filter: "",
-            context: 'body'
-          });
-        }
+        openPopupAtCursor(editor);
       }
 
-      // Backspace: Atomik silmə
       if (e.keyCode === monaco.KeyCode.Backspace) {
         const pos = editor.getPosition();
         if (!pos) return;
-
         const lineDecos = editor.getLineDecorations(pos.lineNumber) || [];
         const chip = lineDecos.find(d =>
           (d.options.inlineClassName?.includes('unified-chip')) &&
           pos.column > d.range.startColumn && pos.column <= d.range.endColumn
         );
-
         if (chip) {
           e.preventDefault();
           editor.executeEdits("atomic-delete", [{
@@ -124,34 +202,55 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
             text: "",
             forceMoveMarkers: true
           }]);
-          applyDecorations(editor); // Silinəndə dərhal yenilə
+          applyDecorations(editor);
         }
       }
     });
 
+    // İlk dekorasiyaları vur
     applyDecorations(editor);
-    return () => provider.dispose();
+
+    // Clean-up
+    return () => {
+      // provider.dispose();
+      editor.removeContentWidget(stickerWidget);
+    };
   };
 
-  useImperativeHandle(ref, () => ({
-    handleAddCode(snippet: string) {
-      const editor = editorRef.current;
-      if (!editor) return;
+ useImperativeHandle(ref, () => ({
+  handleAddCode(snippet: string) {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const model = editor.getModel();
+    const pos = editor.getPosition();
+    
+    if (model && pos) {
+      // Kursorun olduğu sətrin mətnini alırıq
+      const lineContent = model.getLineContent(pos.lineNumber).trim();
+      
+      // Yoxlayırıq: Sətirdə ;, { və ya } varmı?
+      const shouldAddNewLine = /[;{}]/.test(lineContent);
+      
+      // Əgər varsa, snippet-in başına yeni sətir əlavə et
+      const finalSnippet = shouldAddNewLine ? `\n${snippet}` : snippet;
 
       const contribution = editor.getContribution('snippetController2') as any;
       if (contribution) {
-        contribution.insert(snippet);
+        contribution.insert(finalSnippet);
       } else {
         editor.executeEdits("insert", [{
           range: editor.getSelection()!,
-          text: snippet,
+          text: finalSnippet,
           forceMoveMarkers: true
         }]);
       }
-      editor.focus();
-      setPopup(prev => ({ ...prev, visible: false }));
     }
-  }));
+    
+    editor.focus();
+    setPopup(prev => ({ ...prev, visible: false }));
+  }
+}));
 
   return (
     <div className="flex w-full h-full overflow-hidden">
@@ -163,7 +262,7 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
           value={code}
           onMount={handleEditorDidMount}
           onChange={onChange}
-          options={{            
+          options={{
             fontFamily: '"JetBrains Mono", monospace',
             lineHeight: 40,
             fontSize: 20,
@@ -173,21 +272,22 @@ export const CodeEditor = ({ code, onChange, isDark, ref }: any) => {
             quickSuggestions: false,
             folding: false,
             glyphMargin: false,
+            // Kursorun animasiyasını daha hamar edək
+            cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
           }}
         />
 
         {popup.visible && (
           <GridPopup
             position={{ top: popup.top, left: popup.left }}
+            context={popup.context}
+            existingCode={code} // Ümumi kodu göndəririk
             onSelect={(snip) => (ref as any).current.handleAddCode(snip)}
             onClose={() => setPopup(prev => ({ ...prev, visible: false }))}
           />
-        )}      
+        )}
       </div>
-
-      {/* <aside className="w-96 border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0f172a] h-full overflow-y-auto">
-        <InfoSidebar currentLineText={currentLineText} />
-      </aside> */}
     </div>
   );
 };

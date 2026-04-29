@@ -169,3 +169,72 @@
   /* Sol tərəfdə qalın bir "başlanğıç" xətti effekti */
  
 }
+
+/* Stikerin əsas stili */
+/* Stikerin əsas konteyneri */
+.cursor-plus-sticker {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  box-shadow: rgba(99, 102, 241, 0.35) 0px 0px 0px 2px, rgba(99, 102, 241, 0.35) 0px 4px 6px -1px, rgba(99, 102, 241, 0.35) 0px 1px 0px inset;
+  /* MÖVQE TƏNZİMLƏMƏSİ (İstədiyin koordinata görə y=8px aşağı) */
+  transform: translate(20px, 4px);
+  
+  /* Gözəl animasiyalar */
+  transition: opacity 0.2s ease-in-out, transform 0.1s ease-out;
+  
+  z-index: 100 !important;
+  pointer-events: auto;
+  cursor: pointer;
+  
+  /* Açıq fonda yüngül kölgə */
+  border-radius: 8px; /* Tam kəsilmələr olmasın */
+  border-bottom-left-radius: 0;
+}
+
+/* Stikerin xarici forması (Göndərdiyin ikon) */
+.cursor-plus-sticker::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  
+  /* 1. ARXA FON: Açıq Rəng */
+  background: #e0e7ff; /* Açıq Indigo (bg-indigo-100/80) */
+  
+  /* Tünd rəngli kənar xətt effekti (opsional, ikonu daha dəqiq göstərir) */
+  border-radius: inherit; /* Valideynin kənarını izlə */
+  box-sizing: border-box; /* Sərhədi daxil et */
+}
+
+/* Stikerin içindəki '+' simvolu */
+.cursor-plus-sticker::after {
+  content: '+';
+  position: relative;
+  
+  /* 3. '+' Rəngi: Tünd Indigo */
+  color: #4f46e5; /* Indigo-600 */
+
+  
+  
+  font-size: 18px;
+  font-weight: 800;
+  font-family: sans-serif;
+  top: -1px; /* "+" mərkəzlənsin */
+  left: 6.3px;
+}
+
+/* Hover Effekti */
+.cursor-plus-sticker:hover {
+}
+
+.cursor-plus-sticker:hover::before {
+  background: #c7d2fe; /* Bir az daha tünd açıq indigo */
+  border-color: #4338ca; /* Daha tünd Indigo xətt */
+}
+
+/* Aktiv (klikləyəndə) effekt */
+.cursor-plus-sticker:active {
+}
